@@ -25,6 +25,19 @@ barrier_init(void)
 static void 
 barrier()
 {
+  pthread_mutex_lock(&bstate.barrier_mutex);
+  bstate.nthread += 1;
+
+  if(bstate.nthread == nthread){
+	bstate.nthread = 0;
+	bstate.round += 1;
+	pthread_cond_broadcast(&bstate.barrier_cond);
+  }
+  else{
+	pthread_cond_wait(&bstate.barrier_cond,&bstate.barrier_mutex);
+  }
+  pthread_mutex_unlock(&bstate.barrier_mutex);
+  
   // YOUR CODE HERE
   //
   // Block until all threads have called barrier() and
@@ -62,6 +75,7 @@ main(int argc, char *argv[])
     fprintf(stderr, "%s: %s nthread\n", argv[0], argv[0]);
     exit(-1);
   }
+
   nthread = atoi(argv[1]);
   tha = malloc(sizeof(pthread_t) * nthread);
   srandom(0);
@@ -71,8 +85,10 @@ main(int argc, char *argv[])
   for(i = 0; i < nthread; i++) {
     assert(pthread_create(&tha[i], NULL, thread, (void *) i) == 0);
   }
+
   for(i = 0; i < nthread; i++) {
     assert(pthread_join(tha[i], &value) == 0);
   }
+
   printf("OK; passed\n");
 }

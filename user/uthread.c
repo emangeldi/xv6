@@ -10,12 +10,31 @@
 #define STACK_SIZE  8192
 #define MAX_THREAD  4
 
+struct context {
+  uint64 ra;
+  uint64 sp;
+
+  // callee-saved
+  uint64 s0;
+  uint64 s1;
+  uint64 s2;
+  uint64 s3;
+  uint64 s4;
+  uint64 s5;
+  uint64 s6;
+  uint64 s7;
+  uint64 s8;
+  uint64 s9;
+  uint64 s10;
+  uint64 s11;
+};
 
 struct thread {
   char       stack[STACK_SIZE]; /* the thread's stack */
   int        state;             /* FREE, RUNNING, RUNNABLE */
-
+  struct context con;		/* context for this thread */
 };
+
 struct thread all_thread[MAX_THREAD];
 struct thread *current_thread;
 extern void thread_switch(uint64, uint64);
@@ -40,9 +59,11 @@ thread_schedule(void)
   /* Find another runnable thread. */
   next_thread = 0;
   t = current_thread + 1;
+  //printf("cur = %d, state: %d\n",(uint64)current_thread,(uint64)current_thread->state);
   for(int i = 0; i < MAX_THREAD; i++){
     if(t >= all_thread + MAX_THREAD)
       t = all_thread;
+    //printf("t = %d, state: %d | ",(uint64)t,(uint64)t->state);
     if(t->state == RUNNABLE) {
       next_thread = t;
       break;
@@ -54,6 +75,8 @@ thread_schedule(void)
     printf("thread_schedule: no runnable threads\n");
     exit(-1);
   }
+ 
+  //printf("\nschedule: cur %d next %d\n",(uint64)current_thread,(uint64)next_thread);
 
   if (current_thread != next_thread) {         /* switch threads?  */
     next_thread->state = RUNNING;
@@ -63,8 +86,12 @@ thread_schedule(void)
      * Invoke thread_switch to switch from t to next_thread:
      * thread_switch(??, ??);
      */
-  } else
+     //printf("changing schedule\n");
+     thread_switch((uint64)&t->con,(uint64)&next_thread->con);
+  } else{
     next_thread = 0;
+	//printf("schedule threat not found!\n");
+  }
 }
 
 void 
@@ -75,17 +102,29 @@ thread_create(void (*func)())
   for (t = all_thread; t < all_thread + MAX_THREAD; t++) {
     if (t->state == FREE) break;
   }
+
   t->state = RUNNABLE;
+
+  //memmove(&t->con,&all_thread->con,sizeof(struct context));
+  t->con.sp = (uint64)(t->stack + STACK_SIZE);
+  t->con.ra = (uint64)func;
   // YOUR CODE HERE
 }
 
 void 
 thread_yield(void)
 {
+ // struct thread *t;
+  //printf("before yield\n");
+  //for (t = all_thread; t < all_thread + MAX_THREAD; t++)
+//	printf("id: %d, state: %d\n",(uint64)t,(uint64)t->state);
   current_thread->state = RUNNABLE;
+ // printf("yield\n");
   thread_schedule();
+  //printf("after yield\n");
+  //for (t = all_thread; t < all_thread + MAX_THREAD; t++)
+//	printf("id: %d, state: %d\n",(uint64)t,(uint64)t->state);
 }
-
 volatile int a_started, b_started, c_started;
 volatile int a_n, b_n, c_n;
 
@@ -155,9 +194,12 @@ main(int argc, char *argv[])
   a_started = b_started = c_started = 0;
   a_n = b_n = c_n = 0;
   thread_init();
+
   thread_create(thread_a);
   thread_create(thread_b);
   thread_create(thread_c);
+
   thread_schedule();
+
   exit(0);
 }
